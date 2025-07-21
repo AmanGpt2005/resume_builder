@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Builder: An Intelligent Resume Generation Tool</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- html2pdf.js for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Slab:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- Custom Styles -->
+    <style>
+        /* Use Inter as the default font */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Define fonts for resume templates */
+        #resume-preview-area .font-serif { font-family: 'Roboto Slab', serif; }
+        #resume-preview-area .font-sans { font-family: 'Inter', sans-serif; }
+
+        /* Print styles to ensure only the resume is printed/exported */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #resume-preview-area, #resume-preview-area * {
+                visibility: visible;
+            }
+            #resume-preview-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                transform: scale(1);
+                box-shadow: none;
+                border: none;
+            }
+            .editor-panel, .controls-panel, .dark-mode-container, #generate-resume-fab, .main-header {
+                display: none;
+            }
+        }
+
+        /* Loading spinner */
+        .loader {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Styles for visual template selector */
+        .template-choice {
+            cursor: pointer;
+            border: 4px solid transparent;
+            transition: border-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+            opacity: 0.7;
+        }
+        .template-choice:hover {
+            opacity: 1;
+            transform: scale(1.05);
+        }
+        .template-choice.selected {
+            border-color: #4f46e5; /* indigo-600 */
+            opacity: 1;
+        }
+        
+        /* Hide elements by default */
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+    
+    <!-- Main Header -->
+    <header class="main-header bg-white dark:bg-gray-800 shadow-md sticky top-0 z-40">
+        <nav class="container mx-auto px-6 py-3 flex justify-between items-center">
+            <a href="#landing" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400">ResumeGenius</a>
+            <div class="flex items-center space-x-4">
+                <div id="nav-links-unauthenticated" class="hidden">
+                    <a href="#login" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400">Login</a>
+                    <a href="#signup" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Sign Up</a>
+                </div>
+                <div id="nav-links-authenticated" class="hidden">
+                     <a href="#app" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400">My Resume</a>
+                    <button id="logout-btn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Logout</button>
+                </div>
+                <!-- Dark Mode Toggle -->
+                <div class="dark-mode-container">
+                    <div class="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500 dark:text-gray-400"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                        <button id="dark-mode-toggle" type="button" class="bg-gray-200 relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:bg-gray-600" role="switch" aria-checked="false">
+                            <span id="dark-mode-switch" class="translate-x-0 pointer-events-none relative inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Landing Page -->
+    <div id="landing-page" class="page">
+        <section class="text-center py-20 bg-white dark:bg-gray-800">
+            <h1 class="text-5xl font-extrabold text-gray-900 dark:text-white">Build Your Professional Resume in Minutes</h1>
+            <p class="mt-4 text-xl text-gray-600 dark:text-gray-300">Create a standout resume with our AI-powered, easy-to-use builder.</p>
+            <a href="#app" id="cta-create-resume" class="mt-8 inline-block bg-indigo-600 text-white text-lg font-semibold px-8 py-4 rounded-lg shadow-lg hover:bg-indigo-700 transition-transform transform hover:scale-105">Create My Resume</a>
+        </section>
+        <section class="py-16">
+            <div class="container mx-auto px-6">
+                <h2 class="text-3xl font-bold text-center text-gray-800 dark:text-white mb-12">Why Choose ResumeGenius?</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
+                        <h3 class="text-xl font-semibold mb-2">AI-Powered Suggestions</h3>
+                        <p>Get smart recommendations for summaries and job descriptions to make your resume shine.</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
+                        <h3 class="text-xl font-semibold mb-2">Beautiful Templates</h3>
+                        <p>Choose from a selection of professional, modern templates that are proven to get noticed.</p>
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md text-center">
+                        <h3 class="text-xl font-semibold mb-2">Instant PDF Downloads</h3>
+                        <p>Download your resume as a high-quality PDF, ready to be sent to recruiters.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Login Page -->
+    <div id="login-page" class="page">
+        <div class="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
+                <div>
+                    <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Sign in to your account</h2>
+                </div>
+                <form id="login-form" class="mt-8 space-y-6">
+                    <div class="rounded-md shadow-sm -space-y-px">
+                        <div><input id="login-email" type="email" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 placeholder-gray-500 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Email address"></div>
+                        <div><input id="login-password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 placeholder-gray-500 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Password"></div>
+                    </div>
+                    <p id="login-error" class="text-red-500 text-sm"></p>
+                    <div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Sign in</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Page -->
+    <div id="signup-page" class="page">
+        <div class="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-10 rounded-xl shadow-lg">
+                <div><h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">Create a new account</h2></div>
+                <form id="signup-form" class="mt-8 space-y-6">
+                    <div class="rounded-md shadow-sm -space-y-px">
+                        <div><input id="signup-email" type="email" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 placeholder-gray-500 text-gray-900 dark:text-white rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Email address"></div>
+                        <div><input id="signup-password" type="password" required class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 placeholder-gray-500 text-gray-900 dark:text-white rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="Password"></div>
+                    </div>
+                    <p id="signup-error" class="text-red-500 text-sm"></p>
+                    <div><button type="submit" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Sign up</button></div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main App Page -->
+    <div id="app-page" class="page">
+        <div class="container mx-auto p-4">
+            <!-- Controls: Template, Download -->
+            <div class="controls-panel bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md mb-8">
+                 <div class="lg:col-span-2">
+                    <label class="block text-center text-lg font-medium text-gray-700 dark:text-gray-300 mb-4">Choose a Template</label>
+                    <div id="template-visual-selector" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="text-center"><img src="https://placehold.co/200x282/6366f1/white?text=Modern" alt="Modern Template" data-template="template-1" class="template-choice rounded-lg shadow-sm w-full"><p class="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">Modern</p></div>
+                        <div class="text-center"><img src="https://placehold.co/200x282/1f2937/white?text=Classic" alt="Classic Template" data-template="template-2" class="template-choice rounded-lg shadow-sm w-full"><p class="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">Classic</p></div>
+                        <div class="text-center"><img src="https://placehold.co/200x282/84cc16/white?text=Compact" alt="Compact Template" data-template="template-3" class="template-choice rounded-lg shadow-sm w-full"><p class="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">Compact</p></div>
+                    </div>
+                </div>
+                <div class="lg:col-span-2 flex justify-center mt-4">
+                    <div class="w-full md:w-1/3">
+                        <button id="download-pdf" class="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 flex items-center justify-center space-x-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            <span>Download PDF</span>
+                        </button>
+                         <p id="autosave-status" class="text-xs text-center mt-2 text-gray-500 dark:text-gray-400">Changes saved automatically.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-col lg:flex-row gap-8">
+                <!-- Editor Panel -->
+                <div id="editor-panel" class="editor-panel w-full lg:w-1/2">
+                    <form id="resume-form" class="space-y-8">
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><legend class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Personal Details</legend><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><input type="text" id="name" placeholder="Full Name" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"><input type="text" id="title" placeholder="Job Title" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"><input type="email" id="email" placeholder="Email Address" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"><input type="tel" id="phone" placeholder="Phone Number" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"><input type="text" id="address" placeholder="City, Country" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 col-span-2"></div><h3 class="text-lg font-semibold mt-6 mb-2 text-gray-900 dark:text-white">Social Links</h3><div id="social-links-list" class="space-y-2"></div><button type="button" id="add-social-link" class="mt-2 text-sm bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-bold py-2 px-4 rounded-lg transition duration-300">Add Social Link</button></fieldset>
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><div class="flex justify-between items-center mb-4"><legend class="text-xl font-semibold text-gray-900 dark:text-white">Professional Summary</legend><button type="button" id="generate-summary" class="bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold py-1 px-3 rounded-lg transition duration-300 flex items-center space-x-2"><span>✨</span><span>Generate</span></button></div><textarea id="summary" placeholder="Write a brief summary..." class="w-full p-2 border border-gray-300 rounded-md h-32 dark:bg-gray-700 dark:border-gray-600"></textarea></fieldset>
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><legend class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Skills</legend><input type="text" id="skills" placeholder="Enter skills separated by commas" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600"></fieldset>
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><legend class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Work Experience</legend><div id="experience-list" class="space-y-4"></div><button type="button" id="add-experience" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Add Experience</button></fieldset>
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><legend class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Projects</legend><div id="projects-list" class="space-y-4"></div><button type="button" id="add-project" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Add Project</button></fieldset>
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><legend class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Education</legend><div id="education-list" class="space-y-4"></div><button type="button" id="add-education" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Add Education</button></fieldset>
+                        <fieldset class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md"><legend class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Achievements</legend><div id="achievements-list" class="space-y-2"></div><button type="button" id="add-achievement" class="mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">Add Achievement</button></fieldset>
+                    </form>
+                </div>
+                <!-- Resume Preview Panel -->
+                <div class="w-full lg:w-1/2">
+                     <div id="resume-preview-container" class="sticky top-28"><div id="resume-preview-area" class="w-full bg-white shadow-lg border border-gray-200 dark:border-gray-700 dark:bg-gray-800 flex items-center justify-center" style="min-height: 842px;"><div id="resume-placeholder" class="text-center text-gray-500 p-10"><svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">Resume Preview</h3><p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Click the blue button to generate your resume.</p></div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Action Button to Generate Resume -->
+    <button id="generate-resume-fab" title="Generate/Update Resume" class="fixed bottom-8 right-8 z-50 bg-blue-600 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-110 hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
+    </button>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp as fbInitializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth as fbGetAuth, onAuthStateChanged as fbOnAuthStateChanged, createUserWithEmailAndPassword as fbCreateUser, signInWithEmailAndPassword as fbSignIn, signOut as fbSignOut, signInWithCustomToken as fbSignInWithCustomToken, signInAnonymously as fbSignInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore as fbGetFirestore, doc as fbDoc, setDoc as fbSetDoc, getDoc as fbGetDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "YOUR_API_KEY_PLACEHOLDER",
+            authDomain: "YOUR_AUTH_DOMAIN_PLACEHOLDER",
+            projectId: "YOUR_PROJECT_ID_PLACEHOLDER",
+            storageBucket: "YOUR_STORAGE_BUCKET_PLACEHOLDER",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID_PLACEHOLDER",
+            appId: "YOUR_APP_ID_PLACEHOLDER"
+        };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- FIREBASE INITIALIZATION ---
+        const app = fbInitializeApp(firebaseConfig);
+        const auth = fbGetAuth(app);
+        const db = fbGetFirestore(app);
+
+        // --- DATA MANAGEMENT ---
+        const initialResumeData = {
+            personal: { name: '', title: '', email: '', phone: '', address: '', socials: [] },
+            summary: '',
+            skills: [],
+            experience: [],
+            projects: [],
+            education: [],
+            achievements: []
+        };
+        let resumeData = JSON.parse(JSON.stringify(initialResumeData));
+        let selectedTemplate = 'template-1';
+        let currentUser = null;
+
+        // --- DOM ELEMENT REFERENCES ---
+        const allPages = document.querySelectorAll('.page');
+        const mainHeader = document.querySelector('.main-header');
+        const fab = document.getElementById('generate-resume-fab');
+        const navUnauthenticated = document.getElementById('nav-links-unauthenticated');
+        const navAuthenticated = document.getElementById('nav-links-authenticated');
+        const logoutBtn = document.getElementById('logout-btn');
+        const ctaCreateResume = document.getElementById('cta-create-resume');
+        
+        const form = document.getElementById('resume-form');
+        const resumePreviewArea = document.getElementById('resume-preview-area');
+        const downloadPdfBtn = document.getElementById('download-pdf');
+        const templateVisualSelector = document.getElementById('template-visual-selector');
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const darkModeSwitch = document.getElementById('dark-mode-switch');
+        const autosaveStatus = document.getElementById('autosave-status');
+        const generateSummaryBtn = document.getElementById('generate-summary');
+
+        // --- INITIALIZATION ---
+        function startApp() {
+            setupEventListeners();
+            checkDarkMode();
+            
+            let initialAuthCheckCompleted = false;
+
+            fbOnAuthStateChanged(auth, async (user) => {
+                const isInitialCheck = !initialAuthCheckCompleted;
+                initialAuthCheckCompleted = true;
+
+                if (user) {
+                    await handleAuthStateChange(user);
+                } else {
+                    if (isInitialCheck) {
+                        try {
+                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                                await fbSignInWithCustomToken(auth, __initial_auth_token);
+                            } else {
+                                await fbSignInAnonymously(auth);
+                            }
+                        } catch (error) {
+                            console.error("Initial sign-in failed:", error);
+                            await handleAuthStateChange(null);
+                        }
+                    } else {
+                        await handleAuthStateChange(null);
+                    }
+                }
+            });
+
+            window.addEventListener('hashchange', handleRouting);
+        }
+        
+        // --- ROUTING & AUTHENTICATION ---
+        function handleRouting() {
+            let hash = window.location.hash || '#landing';
+            const isRealUser = currentUser && !currentUser.isAnonymous;
+
+            if (hash === '#app' && !isRealUser) {
+                hash = '#login';
+            }
+            if ((hash === '#login' || hash === '#signup') && isRealUser) {
+                hash = '#app';
+            }
+            
+            // Update hash without triggering another hashchange event
+            if (window.location.hash !== hash) {
+                history.pushState(null, null, hash);
+            }
+
+            allPages.forEach(page => page.classList.remove('active'));
+            const targetPageId = hash.substring(1) + '-page';
+            const targetPage = document.getElementById(targetPageId);
+            
+            if (targetPage) {
+                targetPage.classList.add('active');
+            } else {
+                document.getElementById('landing-page').classList.add('active');
+            }
+            
+            fab.classList.toggle('hidden', hash !== '#app');
+        }
+
+        async function handleAuthStateChange(user) {
+            if (user && !user.isAnonymous) {
+                currentUser = user;
+                navUnauthenticated.classList.add('hidden');
+                navAuthenticated.classList.remove('hidden');
+                ctaCreateResume.href = '#app';
+                await loadFromFirestore();
+            } else {
+                currentUser = user; // Can be anonymous or null
+                navUnauthenticated.classList.remove('hidden');
+                navAuthenticated.classList.add('hidden');
+                ctaCreateResume.href = '#signup';
+                resetLocalData();
+            }
+            handleRouting();
+        }
+
+        async function handleSignup(e) {
+            e.preventDefault();
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+            const errorEl = document.getElementById('signup-error');
+            try {
+                errorEl.textContent = '';
+                await fbCreateUser(auth, email, password);
+            } catch (error) {
+                errorEl.textContent = error.message;
+            }
+        }
+        
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errorEl = document.getElementById('login-error');
+            try {
+                errorEl.textContent = '';
+                await fbSignIn(auth, email, password);
+            } catch (error) {
+                errorEl.textContent = error.message;
+            }
+        }
+
+        function handleLogout() {
+            fbSignOut(auth).then(() => {
+                window.location.hash = '#landing';
+            });
+        }
+
+        // --- FIRESTORE DATA HANDLING ---
+        async function saveToFirestore() {
+            if (!currentUser || currentUser.isAnonymous) return;
+            const userId = currentUser.uid;
+            const dataToSave = { resumeData, selectedTemplate };
+            try {
+                await fbSetDoc(fbDoc(db, "artifacts", appId, "users", userId, "resume", "data"), dataToSave);
+                autosaveStatus.textContent = 'Saved!';
+                setTimeout(() => { autosaveStatus.textContent = 'Changes saved automatically.'; }, 2000);
+            } catch(e) {
+                console.error("Error saving to Firestore: ", e);
+                autosaveStatus.textContent = 'Save failed.';
+            }
+        }
+
+        async function loadFromFirestore() {
+            if (!currentUser || currentUser.isAnonymous) return;
+            const userId = currentUser.uid;
+            const docRef = fbDoc(db, "artifacts", appId, "users", userId, "resume", "data");
+            const docSnap = await fbGetDoc(docRef);
+
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                resumeData = { ...JSON.parse(JSON.stringify(initialResumeData)), ...data.resumeData };
+                selectedTemplate = data.selectedTemplate || 'template-1';
+            } else {
+                resetLocalData();
+            }
+            populateFormFromData();
+            updateTemplateSelectionUI();
+        }
+        
+        function resetLocalData() {
+            resumeData = JSON.parse(JSON.stringify(initialResumeData));
+            selectedTemplate = 'template-1';
+            populateFormFromData();
+            updateTemplateSelectionUI();
+        }
+        
+        function populateFormFromData() {
+            Object.keys(resumeData.personal).forEach(key => {
+                if(key !== 'socials') {
+                    const input = document.getElementById(key);
+                    if (input) input.value = resumeData.personal[key];
+                }
+            });
+            document.getElementById('summary').value = resumeData.summary;
+            document.getElementById('skills').value = resumeData.skills.join(', ');
+            renderForm();
+        }
+
+
+        // --- GEMINI API INTEGRATION ---
+        async function callGemini(prompt, button) {
+            const originalText = button.innerHTML;
+            button.innerHTML = '<span class="loader"></span> Generating...';
+            button.disabled = true;
+
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = { contents: chatHistory };
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API request failed with status ${response.status}`);
+                }
+
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    console.error("Unexpected API response structure:", result);
+                    alert("Error: Could not parse AI response.");
+                    return null;
+                }
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                alert(`Error: ${error.message}`);
+                return null;
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        async function handleGenerateSummary() {
+            const { title } = resumeData.personal;
+            const skills = resumeData.skills.join(', ');
+            const experienceTitles = resumeData.experience.map(e => e.title).join(', ');
+
+            if (!title) {
+                alert("Please enter your Job Title first to generate a relevant summary.");
+                return;
+            }
+
+            const prompt = `Write a professional resume summary for a person with the job title "${title}". They have skills in ${skills} and have held positions like ${experienceTitles}. The summary should be 2-4 sentences long, highlighting key strengths and career goals. Do not use markdown.`;
+            
+            const generatedSummary = await callGemini(prompt, generateSummaryBtn);
+
+            if (generatedSummary) {
+                const summaryTextarea = document.getElementById('summary');
+                summaryTextarea.value = generatedSummary;
+                summaryTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        async function handleGenerateDescription(index, button) {
+            const experienceEntry = resumeData.experience[index];
+            const { title } = experienceEntry;
+
+            if (!title) {
+                alert("Please enter a Job Title for this experience entry first.");
+                return;
+            }
+
+            const prompt = `Generate 3-5 bullet points for a resume describing the key responsibilities and achievements for a "${title}". Start each bullet point with '- '. Do not use markdown.`;
+            
+            const generatedDescription = await callGemini(prompt, button);
+            
+            if (generatedDescription) {
+                const descriptionTextarea = document.querySelector(`textarea[data-section="experience"][data-index="${index}"]`);
+                descriptionTextarea.value = generatedDescription;
+                descriptionTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        }
+
+        // --- RENDERING LOGIC ---
+        function renderForm() {
+            renderSocialLinksForm();
+            renderExperienceForm();
+            renderProjectsForm();
+            renderEducationForm();
+            renderAchievementsForm();
+        }
+
+        function renderResume() {
+            resumePreviewArea.innerHTML = getTemplate(selectedTemplate);
+        }
+        
+        // --- EVENT LISTENERS ---
+        function setupEventListeners() {
+            document.getElementById('signup-form').addEventListener('submit', handleSignup);
+            document.getElementById('login-form').addEventListener('submit', handleLogin);
+            logoutBtn.addEventListener('click', handleLogout);
+            form.addEventListener('input', handleFormInput);
+            document.getElementById('add-social-link').addEventListener('click', addSocialLink);
+            document.getElementById('add-experience').addEventListener('click', addExperience);
+            document.getElementById('add-project').addEventListener('click', addProject);
+            document.getElementById('add-education').addEventListener('click', addEducation);
+            document.getElementById('add-achievement').addEventListener('click', addAchievement);
+            
+            form.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-item')) {
+                    const { section, index } = e.target.dataset;
+                    resumeData[section].splice(index, 1);
+                    renderForm();
+                    saveToFirestore();
+                } else if (e.target.classList.contains('remove-social-item')) {
+                    const { index } = e.target.dataset;
+                    resumeData.personal.socials.splice(index, 1);
+                    renderForm();
+                    saveToFirestore();
+                } else if (e.target.closest('.generate-description')) {
+                    const button = e.target.closest('.generate-description');
+                    const index = button.dataset.index;
+                    handleGenerateDescription(index, button);
+                }
+            });
+            
+            fab.addEventListener('click', renderResume);
+            templateVisualSelector.addEventListener('click', handleTemplateSelect);
+            downloadPdfBtn.addEventListener('click', generatePdf);
+            darkModeToggle.addEventListener('click', toggleDarkMode);
+            generateSummaryBtn.addEventListener('click', handleGenerateSummary);
+        }
+
+        function handleFormInput(e) {
+            const { id, value, dataset } = e.target;
+            
+            if (dataset.section) {
+                const { section, index, key } = dataset;
+                if (section === 'socials') {
+                    resumeData.personal.socials[index][key] = value;
+                } else if (section === 'achievements') {
+                    resumeData.achievements[index] = value;
+                }
+                else {
+                    resumeData[section][index][key] = value;
+                }
+            } else if (id === 'skills') {
+                resumeData.skills = value.split(',').map(s => s.trim()).filter(Boolean);
+            } else if (resumeData.personal.hasOwnProperty(id)) {
+                resumeData.personal[id] = value;
+            } else {
+                resumeData[id] = value;
+            }
+            
+            saveToFirestore();
+        }
+
+        function handleTemplateSelect(e) {
+            if (e.target.matches('.template-choice')) {
+                selectedTemplate = e.target.dataset.template;
+                updateTemplateSelectionUI();
+                saveToFirestore();
+                if (!document.getElementById('resume-placeholder')) {
+                    renderResume();
+                }
+            }
+        }
+
+        function updateTemplateSelectionUI() {
+            document.querySelectorAll('.template-choice').forEach(img => {
+                img.classList.remove('selected');
+                if (img.dataset.template === selectedTemplate) {
+                    img.classList.add('selected');
+                }
+            });
+        }
+
+        // --- DYNAMIC SECTION MANAGEMENT ---
+        function addSocialLink() { resumeData.personal.socials.push({ label: 'Website', url: '' }); renderForm(); }
+        function addExperience() { resumeData.experience.push({ title: '', company: '', location: '', dates: '', description: '' }); renderForm(); }
+        function addProject() { resumeData.projects.push({ name: '', url: '', description: '' }); renderForm(); }
+        function addEducation() { resumeData.education.push({ degree: '', school: '', location: '', dates: '' }); renderForm(); }
+        function addAchievement() { resumeData.achievements.push(''); renderForm(); }
+
+        function renderSocialLinksForm() {
+            const list = document.getElementById('social-links-list');
+            list.innerHTML = resumeData.personal.socials.map((social, index) => `
+                <div class="flex items-center gap-2">
+                    <input type="text" data-section="socials" data-index="${index}" data-key="label" value="${social.label}" placeholder="Label (e.g. LinkedIn)" class="w-1/3 p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <input type="url" data-section="socials" data-index="${index}" data-key="url" value="${social.url}" placeholder="URL" class="w-2/3 p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <button type="button" class="remove-social-item text-red-500 hover:text-red-700 font-bold text-2xl" data-index="${index}">&times;</button>
+                </div>
+            `).join('');
+        }
+
+        function renderExperienceForm() {
+            const list = document.getElementById('experience-list');
+            list.innerHTML = resumeData.experience.map((exp, index) => `
+                <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg relative">
+                    <button type="button" class="remove-item absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-2xl" data-section="experience" data-index="${index}">&times;</button>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <input type="text" data-section="experience" data-index="${index}" data-key="title" value="${exp.title}" placeholder="Job Title" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600">
+                        <input type="text" data-section="experience" data-index="${index}" data-key="company" value="${exp.company}" placeholder="Company" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    </div>
+                    <textarea data-section="experience" data-index="${index}" data-key="description" placeholder="Key responsibilities..." class="mt-2 w-full p-2 border border-gray-300 rounded-md h-24 dark:bg-gray-700 dark:border-gray-600">${exp.description}</textarea>
+                    <button type="button" class="generate-description mt-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold py-1 px-2 rounded-md transition" data-index="${index}">✨ Generate Description</button>
+                </div>
+            `).join('');
+        }
+        
+        function renderProjectsForm() {
+            const list = document.getElementById('projects-list');
+            list.innerHTML = resumeData.projects.map((proj, index) => `
+                <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg relative">
+                    <button type="button" class="remove-item absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-2xl" data-section="projects" data-index="${index}">&times;</button>
+                    <input type="text" data-section="projects" data-index="${index}" data-key="name" value="${proj.name}" placeholder="Project Name" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 mb-2">
+                    <input type="url" data-section="projects" data-index="${index}" data-key="url" value="${proj.url}" placeholder="Project URL (Optional)" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 mb-2">
+                    <textarea data-section="projects" data-index="${index}" data-key="description" placeholder="Project description..." class="w-full p-2 border border-gray-300 rounded-md h-24 dark:bg-gray-700 dark:border-gray-600">${proj.description}</textarea>
+                </div>
+            `).join('');
+        }
+
+        function renderEducationForm() {
+            const list = document.getElementById('education-list');
+            list.innerHTML = resumeData.education.map((edu, index) => `
+                <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg relative">
+                    <button type="button" class="remove-item absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-2xl" data-section="education" data-index="${index}">&times;</button>
+                    <input type="text" data-section="education" data-index="${index}" data-key="degree" value="${edu.degree}" placeholder="Degree" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 mb-2">
+                    <input type="text" data-section="education" data-index="${index}" data-key="school" value="${edu.school}" placeholder="School/University" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600">
+                </div>
+            `).join('');
+        }
+        
+        function renderAchievementsForm() {
+            const list = document.getElementById('achievements-list');
+            list.innerHTML = resumeData.achievements.map((ach, index) => `
+                <div class="flex items-center gap-2">
+                    <input type="text" data-section="achievements" data-index="${index}" value="${ach}" placeholder="e.g., Won 'Best Project' at Hackathon 2023" class="w-full p-2 border border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600">
+                    <button type="button" class="remove-item text-red-500 hover:text-red-700 font-bold text-2xl" data-section="achievements" data-index="${index}">&times;</button>
+                </div>
+            `).join('');
+        }
+        
+        // --- UTILITY FUNCTIONS ---
+        function generatePdf() {
+            if(document.getElementById('resume-placeholder')) {
+                alert('Please generate the resume first before downloading.');
+                return;
+            }
+            const element = resumePreviewArea.firstElementChild;
+            const opt = {
+                margin: 0,
+                filename: `${(resumeData.personal.name || 'resume').replace(/ /g, '_')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        function toggleDarkMode() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('darkMode', isDark);
+            updateDarkModeSwitch(isDark);
+            if (!document.getElementById('resume-placeholder')) {
+                renderResume();
+            }
+        }
+
+        function checkDarkMode() {
+            const isDark = localStorage.getItem('darkMode') === 'true';
+            if (isDark) {
+                document.documentElement.classList.add('dark');
+            }
+            updateDarkModeSwitch(isDark);
+        }
+        
+        function updateDarkModeSwitch(isDark) {
+            darkModeSwitch.style.transform = isDark ? 'translateX(1.25rem)' : 'translateX(0)';
+            darkModeToggle.setAttribute('aria-checked', String(isDark));
+        }
+        
+        function formatDescription(text) {
+            if (!text) return '';
+            return text.split('\n').map(line => line.trim()).filter(Boolean).map(line => `<li>${line.replace(/^- /, '')}</li>`).join('');
+        }
+
+        // --- TEMPLATE GENERATORS ---
+        function getTemplate(templateId) {
+            const { personal, summary, skills, experience, projects, education, achievements } = resumeData;
+            
+            const generateSection = (title, content) => {
+                if (!content || (Array.isArray(content) && content.length === 0) || content.trim() === '') return '';
+                return `<div class="mb-6"><h2 class="text-xl font-bold border-b-2 border-gray-300 dark:border-gray-600 pb-1 mb-3">${title.toUpperCase()}</h2>${content}</div>`;
+            };
+            
+            const socialsHtml = personal.socials.map(s => `<span>&bull; <a href="${s.url}" class="text-indigo-600 dark:text-indigo-400">${s.label}</a></span>`).join(' ');
+            const skillsHtml = skills.length > 0 ? `<div class="flex flex-wrap gap-2">${skills.map(skill => `<span class="bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 text-sm font-medium px-3 py-1 rounded-full">${skill}</span>`).join('')}</div>` : '';
+            const experienceHtml = experience.map(exp => `<div class="mb-4 break-inside-avoid"><div class="flex justify-between items-baseline"><h3 class="text-lg font-semibold">${exp.title}</h3></div><p class="font-medium mb-1">${exp.company}</p><ul class="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1 text-sm">${formatDescription(exp.description)}</ul></div>`).join('');
+            const projectsHtml = projects.map(p => `<div class="mb-4 break-inside-avoid"><h3 class="text-lg font-semibold">${p.name}</h3>${p.url ? `<a href="${p.url}" class="text-sm text-indigo-600 dark:text-indigo-400">${p.url}</a>` : ''}<ul class="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1 text-sm mt-1">${formatDescription(p.description)}</ul></div>`).join('');
+            const educationHtml = education.map(edu => `<div class="mb-3 break-inside-avoid"><h3 class="text-lg font-semibold">${edu.degree}</h3><p class="font-medium">${edu.school}</p></div>`).join('');
+            const achievementsHtml = achievements.length > 0 ? `<ul class="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1 text-sm">${achievements.map(a => `<li>${a}</li>`).join('')}</ul>` : '';
+
+            if (templateId === 'template-1') {
+                return `<div class="font-sans text-gray-800 dark:text-gray-200 p-8 md:p-12 w-full"><header class="text-center mb-8"><h1 class="text-5xl font-bold text-gray-900 dark:text-white">${personal.name}</h1><p class="text-2xl text-indigo-600 dark:text-indigo-400 font-medium">${personal.title}</p></header><div class="text-center mb-8 text-sm text-gray-600 dark:text-gray-400 flex justify-center items-center flex-wrap gap-x-4 gap-y-1"><span>${personal.email}</span><span>&bull; ${personal.phone}</span><span>&bull; ${personal.address}</span>${socialsHtml}</div>${generateSection('Summary', `<p class="text-gray-700 dark:text-gray-300 text-sm">${summary}</p>`)}${generateSection('Skills', skillsHtml)}${generateSection('Experience', experienceHtml)}${generateSection('Projects', projectsHtml)}${generateSection('Education', educationHtml)}${generateSection('Achievements', achievementsHtml)}</div>`;
+            }
+            if (templateId === 'template-2') {
+                return `<div class="font-serif text-gray-800 dark:text-gray-200 p-8 md:p-12 w-full"><header class="border-b-4 border-gray-700 dark:border-gray-500 pb-4 mb-6"><h1 class="text-4xl font-bold tracking-wider">${personal.name}</h1><p class="text-xl text-gray-600 dark:text-gray-400">${personal.title}</p></header><div class="mb-6 text-sm"><p>${personal.address}</p><p>${personal.email} | ${personal.phone}</p>${personal.socials.map(s => `<p><a href="${s.url}" class="text-blue-700 dark:text-blue-400">${s.label}: ${s.url}</a></p>`).join('')}</div>${generateSection('Objective', `<p class="text-gray-800 dark:text-gray-200">${summary}</p>`)}${generateSection('Skills', skillsHtml)}${generateSection('Experience', experienceHtml)}${generateSection('Projects', projectsHtml)}${generateSection('Education', educationHtml)}${generateSection('Achievements', achievementsHtml)}</div>`;
+            }
+            if (templateId === 'template-3') {
+                return `<div class="font-sans flex w-full"><div class="w-1/3 bg-gray-800 text-white p-6 flex flex-col"><header class="text-center mb-8"><h1 class="text-3xl font-bold">${personal.name}</h1><p class="text-lg text-indigo-300">${personal.title}</p></header><div class="space-y-6 text-sm"><div><h2 class="font-bold text-indigo-300 tracking-widest text-sm mb-2">CONTACT</h2><p class="break-words">${personal.email}</p><p>${personal.phone}</p><p>${personal.address}</p>${personal.socials.map(s => `<p><a href="${s.url}" class="text-indigo-300 hover:underline">${s.label}</a></p>`).join('')}</div><div><h2 class="font-bold text-indigo-300 tracking-widest text-sm mb-2">SKILLS</h2><div class="flex flex-col space-y-1">${skills.map(skill => `<span>${skill}</span>`).join('')}</div></div><div><h2 class="font-bold text-indigo-300 tracking-widest text-sm mb-2">EDUCATION</h2>${educationHtml}</div></div></div><div class="w-2/3 p-6 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200">${generateSection('Summary', `<p class="text-gray-700 dark:text-gray-300 text-sm">${summary}</p>`)}${generateSection('Experience', experienceHtml)}${generateSection('Projects', projectsHtml)}${generateSection('Achievements', achievementsHtml)}</div></div>`;
+            }
+        }
+
+        // --- START THE APP ---
+        startApp();
+    </script>
+</body>
+</html>
